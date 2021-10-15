@@ -1,0 +1,30 @@
+{
+    "name": "denarx/laravel-installer",
+    "type": "library",
+    "description": "Generate .env from .env.example and set parameters from web interface",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Dmitriy M",
+            "email": "dmmatr@gmail.com"
+        }
+    ],
+    "require": {
+        "imliam/laravel-env-set-command": "^1.3",
+        "php": ">=7.4.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Denarx\\laravelInstaller\\": "src/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Denarx\\laravelInstaller\\InstallServiceProvider"
+            ]
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
