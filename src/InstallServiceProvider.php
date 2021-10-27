@@ -2,10 +2,8 @@
 
 namespace Denarx\laravelInstaller;
 
-use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Env;
 use Illuminate\Support\ServiceProvider;
 
 class InstallServiceProvider extends ServiceProvider
@@ -15,12 +13,11 @@ class InstallServiceProvider extends ServiceProvider
      */
     public function boot()
     {
-        if ($this->installed()) return;
         $this->laravel = app() instanceof \Illuminate\Foundation\Application;
 
         if (method_exists(app(), 'withFacades')) app()->withFacades();
         
-        $envFile = App::basePath() . '\.env';
+        $envFile = base_path('.env');
         if (!file_exists($envFile)) {
             if (!file_exists($envFile . '.example'))  abort(502, 'File ".env.example" not found');
             if (!@copy($envFile . '.example', $envFile)) abort(503, 'File ".env" can\'t be created');
@@ -28,7 +25,7 @@ class InstallServiceProvider extends ServiceProvider
         }
         Route::get('/install', function () {
             Artisan::call('migrate --seed');
-            Artisan::call("env:set APP_INSTALLED=true");
+            touch('.installed');
             return redirect('/');
         });
         Route::post('/', ['as' => 'install', function () {
@@ -44,23 +41,20 @@ class InstallServiceProvider extends ServiceProvider
                 'DB_PASSWORD' => $r['password'],
                 'DB_DATABASE' => $r['database'],
             ];
-            foreach ($env as $k => $v) {
-                Artisan::call("env:set $k=$v");
-            }
+            self::envSet($env);
             return redirect('/install');
         }]);
 
-        $template = $this->template;
         if ($this->laravel) {
-            Route::get('{url}', function () use ($template) {
-                return $template;
+            Route::get('{url}', function () {
+                return self::$template;
             })->where(['url' => '|install']);
             Route::fallback(function () {
                 return redirect('/');
             });
         } else {
-            Route::get('', function () use ($template) {
-                return $template;
+            Route::get('', function () {
+                return self::$template;
             });
             Route::get('{url}', function () {
                 return redirect('/');
@@ -76,7 +70,7 @@ class InstallServiceProvider extends ServiceProvider
      */
     public function installed()
     {
-        return Env::get('APP_INSTALLED');
+        return file_exists('.installed');
     }
 
     /**
@@ -87,7 +81,7 @@ class InstallServiceProvider extends ServiceProvider
     /**
      * Template with installing form.
      */
-    private $template = '
+    private static $template = '
     <html lang="en">
 
         <head>
@@ -137,4 +131,32 @@ class InstallServiceProvider extends ServiceProvider
         </body>  
     </html>
     ';
+    private static function envSet(array $values)
+    {
+        $envFile = base_path('.env');
+        $str = file_get_contents($envFile)."\r\n";
+        foreach ($values as $envKey => $envValue) {
+
+            $keyPosition = strpos($str, "$envKey=");
+            $endOfLinePosition = strpos($str, "\n", $keyPosition);
+            $oldLine = substr($str, $keyPosition, $endOfLinePosition - $keyPosition);
+
+            if (is_bool($keyPosition) && $keyPosition === false) {
+                // variable doesnot exist
+                $str .= "$envKey=$envValue\r\n";
+            } else {
+                // variable exist                    
+                $str = str_replace($oldLine, "$envKey=$envValue", $str);
+            }
+        }
+
+        $str = substr($str, 0, -1);
+        if (!file_put_contents($envFile, $str)) {
+            return false;
+        }
+
+        if (method_exists(app(), 'loadEnvironmentFrom')) app()->loadEnvironmentFrom($envFile);
+
+        return true;
+    }
 }
